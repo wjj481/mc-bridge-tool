@@ -1,0 +1,47 @@
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.tox/
+
+# ---- 虚拟环境 ----
+.venv/
+venv/
+env/
+
+# ---- PyInstaller / 打包产物 ----
+build/
+build_tmp/
+dist/
+*.spec~
+*.spec.bak
+# 发布物（上传到 GitHub Release，不入仓）
+*.tar.gz
+*.zip
+*.sha256
+
+# ---- 运行时产物（服务器目录）----
+server/
+servers/
+run/
+*.log
+logs/
+!mcbridge/constants.py
+
+# ---- IDE / 系统 ----
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# ---- 本地配置与密钥 ----
+.env
+*.local
+config.local.json

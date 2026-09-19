@@ -1,0 +1,12 @@
+# MC Bridge Tool 运行时依赖
+# 桌面端 (desktop/) 使用 Python 标准库 tkinter，无需额外 GUI 依赖。
+
+# HTTP 下载 / 远程控制 API 调用
+requests>=2.31
+
+# Android 端 (android/) 使用 Kivy 构建；桌面端不需要。
+# 如要在本地跑 Android UI 预览，可取消下一行注释：
+# kivy>=2.3.0
+
+# ---- 开发 / 测试依赖（安装方式：pip install -r requirements.txt && pip install pytest）----
+# pytest>=8.0

@@ -1,0 +1,76 @@
+name: Desktop Release
+
+# 打 v*.*.* tag 时，自动在 Windows / Linux runner 上用 PyInstaller 构建桌面端二进制，
+# 并连同 SHA256 校验和一起上传到 GitHub Release。
+# macOS 需在 macos runner 上手动触发（见 packaging/build_macos.sh）。
+
+on:
+  push:
+    tags: ["v*.*.*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            artifact: MC-Bridge-Tool-Windows-x86_64
+          - os: ubuntu-22.04
+            artifact: MC-Bridge-Tool-Linux-x86_64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      - name: Build (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: pyinstaller packaging/mcbridge.spec --noconfirm --distpath dist --workpath build_tmp
+
+      - name: Build (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update && sudo apt-get install -y python3-tk
+          pyinstaller packaging/mcbridge.spec --noconfirm --distpath dist --workpath build_tmp
+
+      - name: Package artifact (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          cd dist
+          7z a ../${{ matrix.artifact }}.zip "MC Bridge Tool"
+          cd ..
+          certutil -hashfile ${{ matrix.artifact }}.zip SHA256 | head -2 > ${{ matrix.artifact }}.sha256
+
+      - name: Package artifact (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          cd dist
+          tar -czf ../${{ matrix.artifact }}.tar.gz "MC Bridge Tool"
+          cd ..
+          sha256sum ${{ matrix.artifact }}.tar.gz | tee ${{ matrix.artifact }}.sha256
+
+      - name: Upload Release asset
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            ${{ matrix.artifact }}.zip
+            ${{ matrix.artifact }}.tar.gz
+            ${{ matrix.artifact }}.sha256
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
