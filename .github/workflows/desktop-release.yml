@@ -1,8 +1,7 @@
 name: Desktop Release
 
-# 打 v*.*.* tag 时，自动在 Windows / Linux runner 上用 PyInstaller 构建桌面端二进制，
+# 打 v*.*.* tag 时，自动在 Windows / Linux / macOS runner 上用 PyInstaller 构建桌面端二进制，
 # 并连同 SHA256 校验和一起上传到 GitHub Release。
-# macOS 需在 macos runner 上手动触发（见 packaging/build_macos.sh）。
 
 on:
   push:
@@ -22,6 +21,10 @@ jobs:
             artifact: MC-Bridge-Tool-Windows-x86_64
           - os: ubuntu-22.04
             artifact: MC-Bridge-Tool-Linux-x86_64
+          - os: macos-13
+            artifact: MC-Bridge-Tool-macOS-x86_64
+          - os: macos-14
+            artifact: MC-Bridge-Tool-macOS-arm64
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -48,6 +51,14 @@ jobs:
           sudo apt-get update && sudo apt-get install -y python3-tk
           pyinstaller packaging/mcbridge.spec --noconfirm --distpath dist --workpath build_tmp
 
+      - name: Build (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          # macOS 系统自带 python3 含 tkinter，避免 setup-python 无 tk 的问题
+          python3 -m pip install --upgrade pip
+          python3 -m pip install -r requirements.txt pyinstaller
+          python3 -m PyInstaller packaging/mcbridge.spec --noconfirm --distpath dist --workpath build_tmp
+
       - name: Package artifact (Windows)
         if: runner.os == 'Windows'
         shell: bash
@@ -64,6 +75,14 @@ jobs:
           tar -czf ../${{ matrix.artifact }}.tar.gz "MC Bridge Tool"
           cd ..
           sha256sum ${{ matrix.artifact }}.tar.gz | tee ${{ matrix.artifact }}.sha256
+
+      - name: Package artifact (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          cd dist
+          zip -r ../${{ matrix.artifact }}.zip "MC Bridge Tool.app"
+          cd ..
+          shasum -a 256 ${{ matrix.artifact }}.zip | tee ${{ matrix.artifact }}.sha256
 
       - name: Upload Release asset
         uses: softprops/action-gh-release@v2
