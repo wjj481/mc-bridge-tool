@@ -71,7 +71,17 @@ jobs:
 
       - name: 构建 debug APK
         working-directory: android
-        run: buildozer -v android debug
+        run: |
+          set +e
+          buildozer -v android debug > /tmp/bz.log 2>&1
+          rc=$?
+          if [ $rc -ne 0 ]; then
+            echo "===== BUILD FAILED, 关键错误 ====="
+            grep -nE "ErrorReturnCode|RAN:|error:|Error|failed|Traceback|No such file|not found|Unable" /tmp/bz.log | tail -30
+            echo "===== 日志最后 60 行 ====="
+            tail -60 /tmp/bz.log
+            exit $rc
+          fi
         env:
           # 自动接受 Android SDK 许可
           ANDROID_HOME: ${{ github.workspace }}/android/.buildozer/android/platform/android-sdk
