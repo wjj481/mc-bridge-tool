@@ -83,10 +83,11 @@ jobs:
           from pathlib import Path
           p = Path(sys.argv[1])
           s = p.read_text()
-          new = re.sub(
-              r'^(\s*)sh\.call\(\[\s*["\']\.?/autogen\.sh["\']\s*\]\s*,\s*\*args,\s*\*\*kwargs\s*\)\s*$',
-              r'\1pass  # autogen skipped (autoconf compat)',
-              s, flags=re.M)
+          for i, line in enumerate(s.splitlines(), 1):
+              if 'autogen' in line.lower():
+                  print(f'LINE {i}: {line!r}')
+          # 宽松替换：整行包含 autogen.sh 的调用替换为 pass
+          new = re.sub(r'^.*autogen\.sh.*$', '    pass  # autogen skipped', s, flags=re.M)
           changed = new != s
           p.write_text(new)
           print('libffi recipe patched:', changed)
