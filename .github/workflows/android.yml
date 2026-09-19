@@ -52,6 +52,9 @@ jobs:
         run: |
           python -m pip install --upgrade pip wheel
           pip install buildozer cython==0.29.36
+          # 显式安装 python-for-android（buildozer 首次运行时才按需克隆，
+          # 这里提前装好以便 patch libffi recipe）
+          pip install python-for-android
 
       - name: 准备打包目录（把核心库拷进 android/）
         run: |
