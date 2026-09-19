@@ -45,12 +45,14 @@ jobs:
         run: |
           set +e
           # tee 让构建日志实时进 step 日志，同时存文件便于失败时精确截取
+          # 镜像 entrypoint 本身就是 buildozer，必须用 --entrypoint bash 覆盖才能跑 shell
           docker run --rm \
             -v "$PWD":/home/user/hostcwd \
             -v "$HOME/.buildozer":/home/user/.buildozer \
             -e ACCEPT_SDK_LICENSE=yes \
+            --entrypoint bash \
             kivy/buildozer:latest \
-            bash -c "buildozer -v android debug" 2>&1 | tee /tmp/bz.log
+            -c "buildozer -v android debug" 2>&1 | tee /tmp/bz.log
           rc=${PIPESTATUS[0]}
           if [ $rc -ne 0 ]; then
             echo "::error::Android build failed (rc=$rc)"
