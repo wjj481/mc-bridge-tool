@@ -18,7 +18,7 @@ from tkinter import filedialog, messagebox, ttk
 # 允许从项目根目录直接 import mcbridge
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from mcbridge import backup, config as cfgmod, downloader, javaenv, monitor, server  # noqa: E402
+from mcbridge import backup, config as cfgmod, downloader, javaenv, monitor, server, webapi  # noqa: E402
 
 
 class MCBridgeApp:
@@ -158,6 +158,52 @@ class MCBridgeApp:
             ttk.Label(mon, textvariable=v).grid(row=i, column=1, sticky="w", padx=4)
         ttk.Button(tab, text="刷新监控", command=self._refresh_monitor).pack(anchor="w", padx=16, pady=4)
         self.monitor_timer()
+
+        self._build_remote(tab)
+
+    # ---------- 远程控制（手机 / iPad） ---------- #
+    def _build_remote(self, tab: ttk.Frame) -> None:
+        box = ttk.LabelFrame(tab, text="远程控制（手机 / iPad 扫码配对后在浏览器里遥控）")
+        box.pack(fill="both", expand=True, padx=12, pady=8)
+
+        top = ttk.Frame(box)
+        top.pack(fill="x", padx=8, pady=6)
+        self.remote_start_btn = ttk.Button(top, text="▶ 启动远程控制", command=self._start_remote)
+        self.remote_start_btn.pack(side="left", padx=4)
+        self.remote_stop_btn = ttk.Button(top, text="■ 停止", command=self._stop_remote, state="disabled")
+        self.remote_stop_btn.pack(side="left", padx=4)
+        self.remote_refresh_btn = ttk.Button(top, text="🔄 换个码", command=self._refresh_remote_code, state="disabled")
+        self.remote_refresh_btn.pack(side="left", padx=4)
+
+        # 左：地址 + 连接码；右：二维码
+        left = ttk.Frame(box)
+        left.pack(side="left", fill="both", expand=True, padx=12, pady=6)
+
+        self.remote_addr_var = tk.StringVar(value="未启动")
+        ttk.Label(left, textvariable=self.remote_addr_var, font=("Arial", 12)).pack(anchor="w", pady=2)
+
+        ttk.Label(left, text="配对连接码：").pack(anchor="w", pady=(8, 0))
+        self.remote_code_var = tk.StringVar(value="------")
+        ttk.Label(left, textvariable=self.remote_code_var,
+                  font=("Consolas", 32, "bold"), foreground="#1a73e8").pack(anchor="w")
+
+        self.remote_status_var = tk.StringVar(value="状态：未启动")
+        ttk.Label(left, textvariable=self.remote_status_var, foreground="#555").pack(anchor="w", pady=(8, 0))
+
+        self.remote_pending_var = tk.StringVar(value="")
+        ttk.Label(left, textvariable=self.remote_pending_var, foreground="#d97706").pack(anchor="w")
+        self.remote_approve_btn = ttk.Button(left, text="✅ 允许下一台设备接入",
+                                             command=self._allow_next_pair, state="disabled")
+        self.remote_approve_btn.pack(anchor="w", pady=4)
+
+        # 二维码占位
+        self.remote_qr_label = ttk.Label(box, text="二维码\n未生成", anchor="center",
+                                        relief="solid", width=18)
+        self.remote_qr_label.pack(side="right", padx=16, pady=6)
+        self._remote_qr_img = None  # 保留引用防止 GC
+
+        self.remote_srv: webapi.RemoteControlServer | None = None
+        self._remote_tick_id = None
 
     # ---------- ④ 日志 ---------- #
     def _build_log(self, tab: ttk.Frame) -> None:
@@ -368,6 +414,93 @@ class MCBridgeApp:
     def monitor_timer(self) -> None:
         self._refresh_monitor()
         self.root.after(5000, self.monitor_timer)
+
+    # ---- 远程控制 ---- #
+    def _start_remote(self) -> None:
+        if not self.server_dir:
+            messagebox.showwarning("提示", "请先在「① 部署」页选择服务器目录")
+            return
+        try:
+            srv = webapi.RemoteControlServer(self.server_dir, host="0.0.0.0")
+            srv.start()
+        except OSError as e:  # 端口占用等
+            messagebox.showerror("启动失败", f"无法绑定端口：{e}")
+            return
+        self.remote_srv = srv
+        self.remote_start_btn.config(state="disabled")
+        self.remote_stop_btn.config(state="normal")
+        self.remote_refresh_btn.config(state="normal")
+        self._update_remote_view()
+        self._remote_tick()
+
+    def _stop_remote(self) -> None:
+        if self._remote_tick_id is not None:
+            self.root.after_cancel(self._remote_tick_id)
+            self._remote_tick_id = None
+        if self.remote_srv is not None:
+            self.remote_srv.stop()
+            self.remote_srv = None
+        self.remote_start_btn.config(state="normal")
+        self.remote_stop_btn.config(state="disabled")
+        self.remote_refresh_btn.config(state="disabled")
+        self.remote_approve_btn.config(state="disabled")
+        self.remote_addr_var.set("未启动")
+        self.remote_code_var.set("------")
+        self.remote_status_var.set("状态：已停止")
+        self.remote_pending_var.set("")
+        self.remote_qr_label.config(image="", text="二维码\n未生成")
+        self._remote_qr_img = None
+
+    def _refresh_remote_code(self) -> None:
+        if self.remote_srv is not None:
+            self.remote_srv.refresh_code()
+            self._update_remote_view()
+
+    def _allow_next_pair(self) -> None:
+        if self.remote_srv is not None:
+            self.remote_srv.allow_next_pair()
+            self._update_remote_view()
+
+    def _update_remote_view(self) -> None:
+        srv = self.remote_srv
+        if srv is None:
+            return
+        self.remote_addr_var.set(f"http://{srv.lan_ip}:{srv.port}")
+        code = srv.current_code() or "已过期，请换个码"
+        self.remote_code_var.set(code)
+        paired = srv.paired_count
+        self.remote_status_var.set(
+            f"状态：运行中 · 已配对设备 {paired} 台 · 连接码 5 分钟有效")
+        pending = srv.pending_pairs
+        if pending:
+            self.remote_pending_var.set(f"等待接入的设备连接码：{', '.join(pending)}（点下方按钮允许）")
+            self.remote_approve_btn.config(state="normal")
+        else:
+            self.remote_pending_var.set("")
+            self.remote_approve_btn.config(state="disabled")
+        self._render_qr(srv.url_for_code())
+
+    def _render_qr(self, url: str) -> None:
+        """在主线程生成二维码 PNG 并显示（qrcode 缺失时静默降级）。"""
+        try:
+            import qrcode
+            from PIL import ImageTk
+        except Exception as e:  # noqa: BLE001
+            self.remote_qr_label.config(image="", text=f"未安装\nqrcode/pillow\n({e})")
+            return
+        try:
+            img = qrcode.make(url)
+            img = img.resize((180, 180))
+            self._remote_qr_img = ImageTk.PhotoImage(img)
+            self.remote_qr_label.config(image=self._remote_qr_img, text="")
+        except Exception as e:  # noqa: BLE001
+            self.remote_qr_label.config(image="", text=f"二维码失败\n{e}")
+
+    def _remote_tick(self) -> None:
+        if self.remote_srv is None:
+            return
+        self._update_remote_view()
+        self._remote_tick_id = self.root.after(2000, self._remote_tick)
 
     # ---- 组件 / 备份 ---- #
     def _check_updates(self) -> None:

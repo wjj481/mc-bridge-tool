@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#0ea5a4" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="MC互通管家" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="description" content="MC互通管家 远程控制面板" />
+  <link rel="manifest" href="manifest.json" />
+  <link rel="icon" href="icon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="icon-192.png" />
+  <link rel="stylesheet" href="style.css" />
+  <title>MC互通管家 远程控制</title>
+</head>
+<body>
+  <!-- ============ 首屏：连接码输入 ============ -->
+  <section id="screen-pair" class="screen">
+    <header class="hero">
+      <div class="logo">
+        <svg viewBox="0 0 64 64" width="56" height="56" aria-hidden="true">
+          <rect x="4" y="4" width="56" height="56" rx="14" fill="#0ea5a4"/>
+          <rect x="16" y="20" width="10" height="10" fill="#fff" opacity=".95"/>
+          <rect x="38" y="20" width="10" height="10" fill="#fff" opacity=".7"/>
+          <rect x="16" y="38" width="10" height="10" fill="#fff" opacity=".7"/>
+          <rect x="38" y="38" width="10" height="10" fill="#fff" opacity=".95"/>
+        </svg>
+      </div>
+      <h1>MC互通管家</h1>
+      <p class="subtitle">远程控制面板</p>
+    </header>
+
+    <div class="card">
+      <label class="field-label" for="code-input">输入桌面端显示的 6 位连接码</label>
+      <div class="code-grid" id="code-grid">
+        <input id="code-input" class="code-input" inputmode="numeric"
+               maxlength="6" autocomplete="one-time-code"
+               pattern="[0-9]*" placeholder="••••••" />
+        <div class="code-slots" aria-hidden="true">
+          <span></span><span></span><span></span><span></span><span></span><span></span>
+        </div>
+      </div>
+
+      <div id="pair-error" class="error-box hidden" role="alert"></div>
+
+      <button id="btn-connect" class="btn btn-primary btn-block btn-lg">
+        <span class="btn-label">连 接</span>
+        <span class="btn-spinner hidden"></span>
+      </button>
+
+      <details class="advanced">
+        <summary>高级：手动填写主机 IP</summary>
+        <label class="field-label" for="host-input">主机地址（IP 或 域名，可带端口）</label>
+        <input id="host-input" class="text-input" type="text" inputmode="text"
+               placeholder="例如 192.168.1.100:8765" />
+        <p class="hint">若桌面端端口不是默认 8765，请写成 192.168.x.x:端口</p>
+      </details>
+    </div>
+
+    <p class="footer-tip">请确保手机与运行 MC-Bridge 的电脑处于同一 Wi-Fi 局域网</p>
+  </section>
+
+  <!-- ============ 控制台 ============ -->
+  <section id="screen-console" class="screen hidden">
+    <header class="topbar">
+      <div>
+        <h2>控制台</h2>
+        <p class="host-line" id="host-line">--</p>
+      </div>
+      <button id="btn-disconnect" class="btn btn-ghost">断开</button>
+    </header>
+
+    <!-- 状态卡片 -->
+    <div class="card status-card">
+      <div class="status-row">
+        <div class="status-item">
+          <span class="dot" id="dot-running"></span>
+          <span id="text-running">未知</span>
+        </div>
+        <div class="status-item">
+          <span class="label">玩家</span>
+          <span id="text-players">– / –</span>
+        </div>
+      </div>
+      <div class="status-row">
+        <div class="status-item">
+          <span class="label">Java 端口</span>
+          <span id="text-java-port">–</span>
+        </div>
+        <div class="status-item">
+          <span class="label">基岩端口</span>
+          <span id="text-bedrock-port">–</span>
+        </div>
+      </div>
+      <div class="status-row">
+        <div class="status-item wide">
+          <span class="label">内存</span>
+          <span id="text-mem">– / – MB</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 大按钮 -->
+    <div class="btn-grid">
+      <button id="btn-start" class="btn btn-primary btn-xl">启动</button>
+      <button id="btn-stop" class="btn btn-warn btn-xl">停止</button>
+      <button id="btn-restart" class="btn btn-danger btn-xl">重启</button>
+    </div>
+
+    <!-- 玩家 chips -->
+    <div class="card">
+      <h3 class="card-title">在线玩家</h3>
+      <div id="players-chips" class="chips empty">暂无玩家</div>
+    </div>
+
+    <!-- 实时日志 -->
+    <div class="card">
+      <div class="card-head">
+        <h3 class="card-title">实时日志</h3>
+        <button id="btn-clear-log" class="btn btn-mini">清空</button>
+      </div>
+      <pre id="log-box" class="log-box"></pre>
+    </div>
+
+    <!-- 配置表单 -->
+    <div class="card">
+      <h3 class="card-title">服务器配置</h3>
+      <form id="config-form" class="form">
+        <label class="field">
+          <span class="field-label">MOTD（服务器描述）</span>
+          <input type="text" name="motd" class="text-input" />
+        </label>
+
+        <div class="grid-2">
+          <label class="field">
+            <span class="field-label">难度</span>
+            <select name="difficulty" class="text-input">
+              <option value="peaceful">和平 peaceful</option>
+              <option value="easy">简单 easy</option>
+              <option value="normal" selected>普通 normal</option>
+              <option value="hard">困难 hard</option>
+            </select>
+          </label>
+          <label class="field">
+            <span class="field-label">游戏模式</span>
+            <select name="gamemode" class="text-input">
+              <option value="survival" selected>生存 survival</option>
+              <option value="creative">创造 creative</option>
+              <option value="adventure">冒险 adventure</option>
+              <option value="spectator">旁观 spectator</option>
+            </select>
+          </label>
+        </div>
+
+        <div class="grid-2">
+          <label class="field">
+            <span class="field-label">最大玩家数</span>
+            <input type="number" name="max_players" class="text-input" min="1" max="1000" />
+          </label>
+          <label class="field">
+            <span class="field-label">内存（Xms / Xmx）</span>
+            <div class="row-2">
+              <input type="text" name="xms" class="text-input" placeholder="2G" />
+              <input type="text" name="xmx" class="text-input" placeholder="4G" />
+            </div>
+          </label>
+        </div>
+
+        <label class="switch">
+          <input type="checkbox" name="online_mode" />
+          <span class="slider"></span>
+          <span class="switch-label">在线模式（正版验证）</span>
+        </label>
+        <label class="switch">
+          <input type="checkbox" name="floodgate_enabled" />
+          <span class="slider"></span>
+          <span class="switch-label">启用 Floodgate（基岩互通）</span>
+        </label>
+
+        <button type="submit" class="btn btn-primary btn-block">保存配置</button>
+        <p class="hint" id="config-hint">部分配置保存后需重启服务器生效</p>
+      </form>
+    </div>
+
+    <p class="footer-tip">MC-Bridge WebUI · 局域网直连</p>
+  </section>
+
+  <!-- ============ 二次确认弹窗 ============ -->
+  <div id="modal" class="modal hidden" role="dialog" aria-modal="true">
+    <div class="modal-mask"></div>
+    <div class="modal-card">
+      <h3 id="modal-title">确认操作</h3>
+      <p id="modal-body">确定要执行该操作吗？</p>
+      <div class="modal-btns">
+        <button id="modal-cancel" class="btn btn-ghost">取消</button>
+        <button id="modal-ok" class="btn btn-danger">确认</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 全局 toast -->
+  <div id="toast" class="toast hidden"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>

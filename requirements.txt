@@ -4,6 +4,9 @@
 # HTTP 下载 / 远程控制 API 调用
 requests>=2.31
 
+# 远程控制二维码（桌面端 GUI 把配对地址生成 PNG 显示）
+qrcode[pil]>=7.4
+
 # Android 端 (android/) 使用 Kivy 构建；桌面端不需要。
 # 如要在本地跑 Android UI 预览，可取消下一行注释：
 # kivy>=2.3.0

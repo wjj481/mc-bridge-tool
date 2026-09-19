@@ -14,7 +14,7 @@ package.name = mcbridge
 package.domain = com.wjj481
 
 # 版本号：与 mcbridge/__init__.py 保持一致
-version = 1.0.0
+version = 1.2.0
 
 # ---- 源码 ----
 # 本目录（android/）就是打包源根目录；main.py 是入口。
