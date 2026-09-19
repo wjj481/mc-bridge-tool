@@ -3,6 +3,10 @@
 # 触发：
 #   * push tag  v*.*.*  -> 构建并上传到 GitHub Release
 #   * workflow_dispatch  -> 手动触发，只上传 artifact（方便自测）
+#
+# 使用 kivy/buildozer 官方 Docker 镜像构建：
+#   - 镜像内置完整工具链（SDK/NDK/autoconf/libtool 兼容版本）
+#   - 避免 Ubuntu 24.04 上 autoconf 2.72 与 libffi autogen 的兼容性问题
 # =============================================================================
 name: Build Android APK
 
@@ -21,41 +25,6 @@ jobs:
       - name: 检出源码
         uses: actions/checkout@v4
 
-      - name: 安装系统依赖（buildozer 所需）
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            git zip unzip openjdk-17-jdk autoconf libtool pkg-config \
-            zlib1g-dev libncurses-dev libncursesw5-dev \
-            cmake libffi-dev libssl-dev
-
-      - name: 安装旧版 autoconf 2.69（兼容 libffi autogen）
-        run: |
-          # Ubuntu 24.04 自带 autoconf 2.72，与 python-for-android 内置 libffi 3.3 的
-          # autogen.sh 不兼容（AC_PROG_LD 等宏在 2.72 中报错）。编译安装 2.69。
-          cd /tmp
-          curl -sL https://ftp.gnu.org/gnu/autoconf/autoconf-2.69.tar.gz -o autoconf-2.69.tar.gz
-          tar xzf autoconf-2.69.tar.gz
-          cd autoconf-2.69
-          ./configure --prefix=/usr > /dev/null 2>&1
-          make -s -j2
-          sudo make install > /dev/null 2>&1
-          autoconf --version | head -1
-
-      - name: 安装 Python 3.11
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-          cache: pip
-
-      - name: 安装 buildozer / python-for-android / cython
-        run: |
-          python -m pip install --upgrade pip wheel
-          pip install buildozer cython==0.29.36
-          # 显式安装 python-for-android（buildozer 首次运行时才按需克隆，
-          # 这里提前装好以便 patch libffi recipe）
-          pip install python-for-android
-
       - name: 准备打包目录（把核心库拷进 android/）
         run: |
           cd android
@@ -67,45 +36,29 @@ jobs:
         with:
           path: |
             ~/.buildozer
-            ~/.gradle/caches
-          key: buildozer-${{ runner.os }}-${{ hashFiles('android/buildozer.spec') }}
+          key: buildozer-docker-${{ hashFiles('android/buildozer.spec') }}
           restore-keys: |
-            buildozer-${{ runner.os }}-
+            buildozer-docker-
 
-      - name: 构建 debug APK
+      - name: 构建 debug APK（Docker）
         working-directory: android
         run: |
-          # 修复 libffi：源码自带 configure，跳过 autogen.sh（autoconf 兼容问题）
-          RECIPE=$(python3 -c "import pathlib, pythonforandroid; print(pathlib.Path(pythonforandroid.__file__).parent/'recipes'/'libffi'/'__init__.py')")
-          echo "libffi recipe: $RECIPE"
-          python3 - "$RECIPE" << 'EOF'
-          import sys, re
-          from pathlib import Path
-          p = Path(sys.argv[1])
-          s = p.read_text()
-          for i, line in enumerate(s.splitlines(), 1):
-              if 'autogen' in line.lower():
-                  print(f'LINE {i}: {line!r}')
-          # 宽松替换：整行包含 autogen.sh 的调用替换为 pass
-          new = re.sub(r'^.*autogen\.sh.*$', '    pass  # autogen skipped', s, flags=re.M)
-          changed = new != s
-          p.write_text(new)
-          print('libffi recipe patched:', changed)
-          EOF
           set +e
-          buildozer -v android debug > /tmp/bz.log 2>&1
+          docker run --rm \
+            -v "$PWD":/home/user/hostcwd \
+            -v "$HOME/.buildozer":/home/user/.buildozer \
+            -e ACCEPT_SDK_LICENSE=yes \
+            kivy/buildozer:latest \
+            android debug > /tmp/bz.log 2>&1
           rc=$?
           if [ $rc -ne 0 ]; then
-            echo "===== BUILD FAILED, 关键错误 ====="
-            grep -nE "ErrorReturnCode|RAN:|error:|Error|failed|Traceback|No such file|not found|Unable" /tmp/bz.log | tail -30
-            echo "===== 日志最后 60 行 ====="
-            tail -60 /tmp/bz.log
+            echo "::error::Android build failed (rc=$rc)"
+            echo "===== 关键错误 ====="
+            grep -nE "ErrorReturnCode|RAN:|Command failed|error:|Error|Traceback|No such file|not found|Unable" /tmp/bz.log | tail -25
+            echo "===== 日志最后 40 行 ====="
+            tail -40 /tmp/bz.log
             exit $rc
           fi
-        env:
-          # 自动接受 Android SDK 许可
-          ANDROID_HOME: ${{ github.workspace }}/android/.buildozer/android/platform/android-sdk
-          ACCEPT_SDK_LICENSE: "yes"
 
       - name: 列出产物
         run: ls -la android/bin/
