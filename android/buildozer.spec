@@ -42,6 +42,7 @@ android.api = 34
 android.minapi = 24
 android.ndk = 25b
 android.sdk = 34
+android.build_tools = 34.0.0
 android.archs = arm64-v8a
 android.sdk_root =
 android.ndk_dir =

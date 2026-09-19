@@ -72,6 +72,21 @@ jobs:
       - name: 构建 debug APK
         working-directory: android
         run: |
+          # 修复 libffi：源码自带 configure，跳过 autogen.sh（autoconf 兼容问题）
+          RECIPE="$HOME/.local/lib/python3.11/site-packages/pythonforandroid/recipes/libffi/__init__.py"
+          python3 - "$RECIPE" << 'EOF'
+          import sys, re
+          from pathlib import Path
+          p = Path(sys.argv[1])
+          s = p.read_text()
+          new = re.sub(
+              r'^(\s*)sh\.call\(\[\s*["\']\.?/autogen\.sh["\']\s*\]\s*,\s*\*args,\s*\*\*kwargs\s*\)\s*$',
+              r'\1pass  # autogen skipped (autoconf compat)',
+              s, flags=re.M)
+          changed = new != s
+          p.write_text(new)
+          print('libffi recipe patched:', changed)
+          EOF
           set +e
           buildozer -v android debug > /tmp/bz.log 2>&1
           rc=$?
