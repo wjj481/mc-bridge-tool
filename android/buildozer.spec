@@ -40,10 +40,11 @@ android.permissions = INTERNET,ACCESS_NETWORK_STATE,ACCESS_WIFI_STATE,\
     FOREGROUND_SERVICE_CONNECTED_SERVICE,WAKE_LOCK,CHANGE_WIFI_MULTICAST_STATE
 
 # ---- 构建 ----
-android.api = 34
+# 2026-09 官方文档推荐组合（旧 master/NDK25b 会拉到 Python 3.14，pyjnius 不兼容）
+android.api = 36
 android.minapi = 24
-android.ndk = 25b
-android.sdk = 34
+android.ndk = 29
+android.sdk = 36
 android.build_tools = 34.0.0
 android.archs = arm64-v8a
 android.sdk_root =
@@ -63,7 +64,8 @@ android.orientation = portrait
 # android.icon = %(source.dir)s/../assets/icon.png
 
 # ---- 构建优化 ----
-p4a.branch = master
+# 官方 2026-09 文档推荐 develop 分支（master 拉的 hostpython 3.14 与 pyjnius 不兼容）
+p4a.branch = develop
 p4a.debug = 0
 # 不做 debuggable 发布包
 android.debug_application = 0

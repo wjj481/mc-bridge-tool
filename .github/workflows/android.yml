@@ -36,9 +36,9 @@ jobs:
         with:
           path: |
             ~/.buildozer
-          key: buildozer-v2-${{ hashFiles('android/buildozer.spec') }}
+          key: buildozer-v3-${{ hashFiles('android/buildozer.spec') }}
           restore-keys: |
-            buildozer-v2-
+            buildozer-v3-
 
       - name: 构建 debug APK（Docker，输出直传日志）
         working-directory: android
