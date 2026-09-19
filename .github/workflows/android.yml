@@ -36,27 +36,28 @@ jobs:
         with:
           path: |
             ~/.buildozer
-          key: buildozer-docker-${{ hashFiles('android/buildozer.spec') }}
+          key: buildozer-v2-${{ hashFiles('android/buildozer.spec') }}
           restore-keys: |
-            buildozer-docker-
+            buildozer-v2-
 
-      - name: 构建 debug APK（Docker）
+      - name: 构建 debug APK（Docker，输出直传日志）
         working-directory: android
         run: |
           set +e
+          # tee 让构建日志实时进 step 日志，同时存文件便于失败时精确截取
           docker run --rm \
             -v "$PWD":/home/user/hostcwd \
             -v "$HOME/.buildozer":/home/user/.buildozer \
             -e ACCEPT_SDK_LICENSE=yes \
             kivy/buildozer:latest \
-            android debug > /tmp/bz.log 2>&1
-          rc=$?
+            bash -c "buildozer -v android debug" 2>&1 | tee /tmp/bz.log
+          rc=${PIPESTATUS[0]}
           if [ $rc -ne 0 ]; then
             echo "::error::Android build failed (rc=$rc)"
-            echo "===== 关键错误 ====="
-            grep -nE "ErrorReturnCode|RAN:|Command failed|error:|Error|Traceback|No such file|not found|Unable" /tmp/bz.log | tail -25
-            echo "===== 日志最后 40 行 ====="
-            tail -40 /tmp/bz.log
+            echo "===== 关键 pip / 编译错误 ====="
+            grep -nE "ERROR:|error:|Could not|No matching|Collecting|Downloading|RuntimeError|Exception|fatal|CMake|ninja|return code" /tmp/bz.log | tail -40
+            echo "===== 日志最后 60 行 ====="
+            tail -60 /tmp/bz.log
             exit $rc
           fi
 

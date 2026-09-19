@@ -26,7 +26,9 @@ source.exclude_dirs = .buildozer,build,bin,__pycache__,tests
 
 # ---- 依赖 ----
 # python3 + kivy 是 GUI；其余为核心库运行所需（标准库 / 纯 python）。
-requirements = python3, kivy
+# 不钉 python3 版本：p4a 的 hostpython3 recipe 写死版本且要求与 python3 一致，
+# 钉不同版本会触发 "python3 should have same version as hostpython3" 守卫错误。
+requirements = python3, kivy==2.3.1
 # 说明：
 #   * 不打 Android 自带 Java 运行时——服务器端 JDK 由 Termux 的 openjdk-21 提供。
 #   * 网络下载走标准库 urllib/requests 不在 requirements 里；
