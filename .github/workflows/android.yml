@@ -29,6 +29,19 @@ jobs:
             zlib1g-dev libncurses-dev libncursesw5-dev \
             cmake libffi-dev libssl-dev
 
+      - name: 安装旧版 autoconf 2.69（兼容 libffi autogen）
+        run: |
+          # Ubuntu 24.04 自带 autoconf 2.72，与 python-for-android 内置 libffi 3.3 的
+          # autogen.sh 不兼容（AC_PROG_LD 等宏在 2.72 中报错）。编译安装 2.69。
+          cd /tmp
+          curl -sL https://ftp.gnu.org/gnu/autoconf/autoconf-2.69.tar.gz -o autoconf-2.69.tar.gz
+          tar xzf autoconf-2.69.tar.gz
+          cd autoconf-2.69
+          ./configure --prefix=/usr > /dev/null 2>&1
+          make -s -j2
+          sudo make install > /dev/null 2>&1
+          autoconf --version | head -1
+
       - name: 安装 Python 3.11
         uses: actions/setup-python@v5
         with:
